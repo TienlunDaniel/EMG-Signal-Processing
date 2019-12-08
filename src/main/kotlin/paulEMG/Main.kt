@@ -4,6 +4,7 @@ import koma.*
 import koma.extensions.get
 import org.apache.poi.ss.usermodel.WorkbookFactory
 import java.io.FileInputStream
+import java.io.ObjectInput
 import kotlin.math.absoluteValue
 
 fun main() {
@@ -14,41 +15,75 @@ fun main() {
     val female_3 = "./female_3.xlsx"
     val male_1 = "./male_1.xlsx"
 
-//    // Create some normal random noise
-//    var a = randn(100, 2)
-//    var b = cumsum(a)
-//
-//    figure(1)
-//    // Second parameter is color
-//    plot(a, 'b', "First Run")
-//    plot(a, 'y', "First Run Offset")
-//    xlabel("Time (s)")
-//    ylabel("Magnitude")
-//    title("White Noise")
-//
-//    figure(2)
-//    plot(b, 'g') // green
-//    xlabel("Velocity (lightweeks/minute)")
-//    ylabel("Intelligence")
-//    title("Random Walk")
-
-
     val map = generateMapWithFile(male_1)
 
 
     val mavMap = MAV(map, 30)
     val ccMap = CC(map, 30)
+    val bzcMap = BZC(map, 30)
+    val lsgMap = LSG(map, 30)
+
+    //we are not using these two for simplicity
     val wampMap = WAMP(map, 30)
-    val bzcpMap = BZC(map, 30)
     val sscMap = SSC(map, 30)
-    val lsgpMap = LSG(map, 30)
 
-    val a = mavMap["cyl_ch1"]!![0]
-    val b = ccMap["cyl_ch1"]!![0]
+    var count = 1
 
-    val x = findLambdaOf_Two_1D_Matrix(a, b)
+    for (sheetName in mavMap.keys) {
 
-    println()
+        //mav and cc for one lambda value
+        val mavDataMatrix = mavMap[sheetName]
+        val ccDataMatrix = ccMap[sheetName]
+
+        //bzc and lsg for another lambda value
+        val bzcDataMatrix = bzcMap[sheetName]
+        val lsgDataMatrix = lsgMap[sheetName]
+
+        val lambda_1_list = ArrayList<Double>()
+        val lambda_2_list = ArrayList<Double>()
+
+        val trace_list = ArrayList<Double>()
+
+        for (index in mavDataMatrix!!.indices) {
+
+            val mavRow = mavDataMatrix[index]
+            val ccRow = ccDataMatrix!![index]
+
+            val bzcRow = bzcDataMatrix!![index]
+            val lsgRow = lsgDataMatrix!![index]
+
+            val lambda_1 = findLambdaOf_Two_1D_Matrix(mavRow, ccRow)
+            val lambda_2 = findLambdaOf_Two_1D_Matrix(bzcRow, lsgRow)
+
+            val original_4D_matrix = create(
+                arrayOf(
+                    mavRow.toDoubleArray(), ccRow.toDoubleArray()
+                    , bzcRow.toDoubleArray(), lsgRow.toDoubleArray()
+                )
+            )
+
+            //Must be a square matrix.
+            //val original_det = original_4D_matrix.det()
+            val original_trace = original_4D_matrix.trace()
+
+
+            lambda_1_list.add(lambda_1)
+            lambda_2_list.add(lambda_2)
+            trace_list.add(original_trace)
+        }
+
+        figure(count)
+        plot(x = null, y = lambda_1_list.toDoubleArray(), color = "g", lineLabel = "Lambda 1")
+        plot(x = null, y = lambda_2_list.toDoubleArray(), color = "b", lineLabel = "Lambda 2")
+        plot(x = null, y = trace_list.toDoubleArray(), color = "p", lineLabel = "Trace")
+
+        xlabel("Data Set")
+        ylabel("Value")
+        title(sheetName)
+
+        count++
+    }
+
 
 }
 
