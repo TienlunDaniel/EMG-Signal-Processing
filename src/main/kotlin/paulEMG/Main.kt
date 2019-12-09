@@ -15,7 +15,8 @@ fun DoubleArray.sd(): Double {
     return kotlin.math.sqrt(sd / size)
 }
 
-lateinit var C_matrix: Matrix<Double>
+val functionList = listOf(::MAV, ::CC, ::BZC, ::LSG, ::WAMP, ::SSC)
+val chunkWidth = 30
 
 fun main() {
 
@@ -32,14 +33,14 @@ fun plotFileGraph(filePath: String) {
 
     val map = generateMapWithFile(filePath)
 
-    val mavMap = MAV(map, 30)
-    val ccMap = CC(map, 30)
-    val bzcMap = BZC(map, 30)
-    val lsgMap = LSG(map, 30)
+    val mavMap = MAV(map, chunkWidth)
+    val ccMap = CC(map, chunkWidth)
+    val bzcMap = BZC(map, chunkWidth)
+    val lsgMap = LSG(map, chunkWidth)
 
     //we are not using these two for simplicity
-    val wampMap = WAMP(map, 30)
-    val sscMap = SSC(map, 30)
+    val wampMap = WAMP(map, chunkWidth)
+    val sscMap = SSC(map, chunkWidth)
 
     var count = 1
 
@@ -69,13 +70,9 @@ fun plotFileGraph(filePath: String) {
             val bzcRow = bzcDataMatrix!![index]
             val lsgRow = lsgDataMatrix!![index]
 
-            val lambda_1 = findLambdaOf_Two_1D_Matrix(mavRow, ccRow)
+            val (lambda_1, det_1) = findLambdaOf_Two_1D_Matrix(mavRow, ccRow)
+            val (lambda_2, det_2) = findLambdaOf_Two_1D_Matrix(bzcRow, lsgRow)
 
-            det_1_list.add(C_matrix.det())
-
-            val lambda_2 = findLambdaOf_Two_1D_Matrix(bzcRow, lsgRow)
-
-            det_2_list.add(C_matrix.det())
 
             val original_4D_matrix = create(
                 arrayOf(
@@ -86,11 +83,14 @@ fun plotFileGraph(filePath: String) {
 
             val original_trace = original_4D_matrix.trace()
 
+            det_1_list.add(det_1)
+            det_2_list.add(det_2)
             lambda_1_list.add(lambda_1)
             lambda_2_list.add(lambda_2)
             trace_list.add(original_trace)
         }
 
+        //plot the graph and print out standard deviation
         figure(count)
         plot(x = null, y = lambda_1_list.toDoubleArray(), color = "g", lineLabel = "Lambda 1")
         plot(x = null, y = lambda_2_list.toDoubleArray(), color = "b", lineLabel = "Lambda 2")
@@ -114,7 +114,8 @@ fun plotFileGraph(filePath: String) {
     }
 }
 
-fun findLambdaOf_Two_1D_Matrix(m1: List<Double>, m2: List<Double>): Double {
+//return lambda of two matrix and C's det
+fun findLambdaOf_Two_1D_Matrix(m1: List<Double>, m2: List<Double>): Pair<Double, Double> {
 
     //get average
     val m1_mean = m1.average()
@@ -137,8 +138,6 @@ fun findLambdaOf_Two_1D_Matrix(m1: List<Double>, m2: List<Double>): Double {
 
     val C = matrix_2D_prime.times(matrix_2D_prime_transpose).times(0.01)
 
-    C_matrix = C
-
     val i = C[0, 0]
     val j = C[0, 1]
     val k = C[1, 1]
@@ -146,7 +145,7 @@ fun findLambdaOf_Two_1D_Matrix(m1: List<Double>, m2: List<Double>): Double {
     val lambda_1 = 0.5 * ((i + k) + sqrt(pow(i + k, 2) - 4 * (i * k - pow(j, 2))))
     val lambda_2 = 0.5 * ((i + k) - sqrt(pow(i + k, 2) - 4 * (i * k - pow(j, 2))))
 
-    return max(lambda_1, lambda_2)
+    return Pair(max(lambda_1, lambda_2), C.det())
 }
 
 fun CC(
