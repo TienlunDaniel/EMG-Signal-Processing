@@ -91,6 +91,8 @@ fun exportExcel(filePath: String, map: Map<String, List<EigenMethodPairSD>>) {
         val lambdaRow = sheet.createRow(1)
         val detRow = sheet.createRow(2)
         val traceRow = sheet.createRow(3)
+        val averageRow = sheet.createRow(4)
+
 
         // Create cells
         for (i in listOfPairSD.indices) {
@@ -101,12 +103,18 @@ fun exportExcel(filePath: String, map: Map<String, List<EigenMethodPairSD>>) {
             lambdaRow.createCell(i * 3 + 1).setCellValue(listOfPairSD[i].second.lambdaSD)
             detRow.createCell(i * 3 + 1).setCellValue(listOfPairSD[i].second.detSD)
             traceRow.createCell(i * 3 + 1).setCellValue(listOfPairSD[i].second.traceSD)
+
+            averageRow.createCell(i * 3 + 1).setCellValue(
+                (listOfPairSD[i].second.lambdaSD + listOfPairSD[i].second.traceSD
+                        + listOfPairSD[i].second.detSD) / 3.0
+            )
+
         }
 
         lambdaRow.createCell(0).setCellValue("Lambda SD")
         detRow.createCell(0).setCellValue("Det SD")
         traceRow.createCell(0).setCellValue("Trace SD")
-
+        averageRow.createCell(0).setCellValue("Average")
 
     }
 
