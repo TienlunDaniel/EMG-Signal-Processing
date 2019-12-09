@@ -2,14 +2,15 @@ package paulEMG
 
 import koma.*
 import koma.extensions.get
+import org.apache.poi.ss.usermodel.Workbook
 import org.apache.poi.ss.usermodel.WorkbookFactory
+import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import java.io.FileInputStream
-import java.util.*
-import kotlin.collections.ArrayList
-import kotlin.collections.HashMap
+import java.io.FileOutputStream
 import kotlin.math.absoluteValue
 import kotlin.math.pow
 import kotlin.reflect.KFunction
+
 
 // 2D matrix for a specific posture i.e. spher_ch1
 typealias DataMatrix = List<List<Double>>
@@ -79,6 +80,46 @@ fun main() {
 }
 
 fun exportExcel(filePath: String, map: Map<String, List<EigenMethodPairSD>>) {
+    // Create a Workbook
+    // Create a Workbook
+    val workbook: Workbook = XSSFWorkbook() // new HSSFWorkbook() for generating `.xls` file
+
+    for ((sheetName, listOfPairSD) in map) {
+
+        val sheet = workbook.createSheet(sheetName)
+        val headerRow = sheet.createRow(0)
+        val lambdaRow = sheet.createRow(1)
+        val detRow = sheet.createRow(2)
+        val traceRow = sheet.createRow(3)
+
+        // Create cells
+        for (i in listOfPairSD.indices) {
+
+            val function_name = listOfPairSD[i].first.first.name +" , " +  listOfPairSD[i].first.second.name
+            headerRow.createCell(i * 3 + 1).setCellValue(function_name)
+
+            lambdaRow.createCell(i * 3 + 1).setCellValue(listOfPairSD[i].second.lambdaSD)
+            detRow.createCell(i * 3 + 1).setCellValue(listOfPairSD[i].second.detSD)
+            traceRow.createCell(i * 3 + 1).setCellValue(listOfPairSD[i].second.traceSD)
+        }
+
+        lambdaRow.createCell(0).setCellValue("Lambda SD")
+        detRow.createCell(0).setCellValue("Det SD")
+        traceRow.createCell(0).setCellValue("Trace SD")
+
+
+    }
+
+    // Write the output to a file
+    // Write the output to a file
+    val fileOut = FileOutputStream(filePath.substring(2))
+    workbook.write(fileOut)
+    fileOut.close()
+
+    // Closing the workbook
+    // Closing the workbook
+    workbook.close()
+
 
 }
 
