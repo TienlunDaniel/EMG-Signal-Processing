@@ -2,10 +2,20 @@ package paulEMG
 
 import koma.*
 import koma.extensions.get
+import koma.matrix.Matrix
 import org.apache.poi.ss.usermodel.WorkbookFactory
 import java.io.FileInputStream
 import java.io.ObjectInput
 import kotlin.math.absoluteValue
+import kotlin.math.pow
+
+fun DoubleArray.sd(): Double {
+    val mean = average()
+    val sd = fold(0.0, { accumulator, next -> accumulator + (next - mean).pow(2.0) })
+    return kotlin.math.sqrt(sd / size)
+}
+
+lateinit var C_matrix: Matrix<Double>
 
 fun main() {
 
@@ -15,8 +25,12 @@ fun main() {
     val female_3 = "./female_3.xlsx"
     val male_1 = "./male_1.xlsx"
 
-    val map = generateMapWithFile(male_1)
+    plotFileGraph(male_1)
+}
 
+fun plotFileGraph(filePath: String) {
+
+    val map = generateMapWithFile(filePath)
 
     val mavMap = MAV(map, 30)
     val ccMap = CC(map, 30)
@@ -42,6 +56,9 @@ fun main() {
         val lambda_1_list = ArrayList<Double>()
         val lambda_2_list = ArrayList<Double>()
 
+        val det_1_list = ArrayList<Double>()
+        val det_2_list = ArrayList<Double>()
+
         val trace_list = ArrayList<Double>()
 
         for (index in mavDataMatrix!!.indices) {
@@ -53,7 +70,12 @@ fun main() {
             val lsgRow = lsgDataMatrix!![index]
 
             val lambda_1 = findLambdaOf_Two_1D_Matrix(mavRow, ccRow)
+
+            det_1_list.add(C_matrix.det())
+
             val lambda_2 = findLambdaOf_Two_1D_Matrix(bzcRow, lsgRow)
+
+            det_2_list.add(C_matrix.det())
 
             val original_4D_matrix = create(
                 arrayOf(
@@ -62,10 +84,7 @@ fun main() {
                 )
             )
 
-            //Must be a square matrix.
-            //val original_det = original_4D_matrix.det()
             val original_trace = original_4D_matrix.trace()
-
 
             lambda_1_list.add(lambda_1)
             lambda_2_list.add(lambda_2)
@@ -75,16 +94,24 @@ fun main() {
         figure(count)
         plot(x = null, y = lambda_1_list.toDoubleArray(), color = "g", lineLabel = "Lambda 1")
         plot(x = null, y = lambda_2_list.toDoubleArray(), color = "b", lineLabel = "Lambda 2")
+        plot(x = null, y = det_1_list.toDoubleArray(), color = "orange", lineLabel = "Det 1")
+        plot(x = null, y = det_2_list.toDoubleArray(), color = "black", lineLabel = "Det 2")
         plot(x = null, y = trace_list.toDoubleArray(), color = "p", lineLabel = "Trace")
 
         xlabel("Data Set")
         ylabel("Value")
         title(sheetName)
 
+        println(sheetName)
+        println(lambda_1_list.toDoubleArray().sd())
+        println(lambda_2_list.toDoubleArray().sd())
+        println(det_1_list.toDoubleArray().sd())
+        println(det_2_list.toDoubleArray().sd())
+        println(trace_list.toDoubleArray().sd())
+        println()
+
         count++
     }
-
-
 }
 
 fun findLambdaOf_Two_1D_Matrix(m1: List<Double>, m2: List<Double>): Double {
@@ -109,6 +136,8 @@ fun findLambdaOf_Two_1D_Matrix(m1: List<Double>, m2: List<Double>): Double {
     val matrix_2D_prime_transpose = matrix_2D_prime.transpose()
 
     val C = matrix_2D_prime.times(matrix_2D_prime_transpose).times(0.01)
+
+    C_matrix = C
 
     val i = C[0, 0]
     val j = C[0, 1]
