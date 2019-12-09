@@ -2,117 +2,160 @@ package paulEMG
 
 import koma.*
 import koma.extensions.get
-import koma.matrix.Matrix
 import org.apache.poi.ss.usermodel.WorkbookFactory
 import java.io.FileInputStream
-import java.io.ObjectInput
+import java.util.*
+import kotlin.collections.ArrayList
+import kotlin.collections.HashMap
 import kotlin.math.absoluteValue
 import kotlin.math.pow
+import kotlin.reflect.KFunction
 
+// 2D matrix for a specific posture i.e. spher_ch1
+typealias DataMatrix = List<List<Double>>
+
+//sheet name -> 2D Matrix
+typealias EMGSignal = Map<String, DataMatrix>
+
+//MAV, CC...etc function
+typealias EigenFunction = KFunction<EMGSignal>
+
+//(MAV, CC) , (MAV, WAMP)...etc
+typealias EigenMethodPair = Pair<EigenFunction, EigenFunction>
+
+//SD for method pair (MAV, CC)
+data class EigenvaluesSD(val lambdaSD: Double, val detSD: Double, val traceSD: Double)
+
+//((MAV, CC), (Lambda, determinant, trace)
+typealias EigenMethodPairSD = Pair<EigenMethodPair, EigenvaluesSD>
+
+//standard deviation
 fun DoubleArray.sd(): Double {
     val mean = average()
     val sd = fold(0.0, { accumulator, next -> accumulator + (next - mean).pow(2.0) })
     return kotlin.math.sqrt(sd / size)
 }
 
+//for iteration purpose
 val functionList = listOf(::MAV, ::CC, ::BZC, ::LSG, ::WAMP, ::SSC)
+
+//chunck size for function
 val chunkWidth = 30
+
+val function_combination_list = ArrayList<EigenMethodPair>().apply {
+
+    //till second last
+    for (index in 0 until functionList.size - 1) {
+        for (index_2 in index + 1 until functionList.size)
+            add(EigenMethodPair(functionList[index], functionList[index_2]))
+    }
+}
+
+val mine_EMG = "./mine_EMG.xlsx"
+val female_1 = "./female_1.xlsx"
+val female_2 = "./female_2.xlsx"
+val female_3 = "./female_3.xlsx"
+val male_1 = "./male_1.xlsx"
 
 fun main() {
 
-    val mine_EMG = "./mine_EMG.xlsx"
-    val female_1 = "./female_1.xlsx"
-    val female_2 = "./female_2.xlsx"
-    val female_3 = "./female_3.xlsx"
-    val male_1 = "./male_1.xlsx"
+    val excel_male_1 = exportStandardDeviationFile(male_1)
+    exportExcel("./sd_male_1.xlsx", excel_male_1)
 
-    plotFileGraph(male_1)
+    val excel_female_1 = exportStandardDeviationFile(female_1)
+    exportExcel("./sd_female_1.xlsx", excel_female_1)
+
+    val excel_female_2 = exportStandardDeviationFile(female_2)
+    exportExcel("./sd_female_2.xlsx", excel_female_2)
+
+    val excel_female_3 = exportStandardDeviationFile(female_3)
+    exportExcel("./sd_female_3.xlsx", excel_female_3)
+
+    val excel_mine_EMG = exportStandardDeviationFile(mine_EMG)
+    exportExcel("./sd_mine_EMG.xlsx", excel_mine_EMG)
+
+    println()
+
 }
 
-fun plotFileGraph(filePath: String) {
+fun exportExcel(filePath: String, map: Map<String, List<EigenMethodPairSD>>) {
+
+}
+
+fun exportStandardDeviationFile(filePath: String): Map<String, List<EigenMethodPairSD>> {
 
     val map = generateMapWithFile(filePath)
 
-    val mavMap = MAV(map, chunkWidth)
-    val ccMap = CC(map, chunkWidth)
-    val bzcMap = BZC(map, chunkWidth)
-    val lsgMap = LSG(map, chunkWidth)
+    val file_SD_ValueForEach = HashMap<String, List<EigenMethodPairSD>>()
 
-    //we are not using these two for simplicity
-    val wampMap = WAMP(map, chunkWidth)
-    val sscMap = SSC(map, chunkWidth)
-
-    var count = 1
-
-    for (sheetName in mavMap.keys) {
-
-        //mav and cc for one lambda value
-        val mavDataMatrix = mavMap[sheetName]
-        val ccDataMatrix = ccMap[sheetName]
-
-        //bzc and lsg for another lambda value
-        val bzcDataMatrix = bzcMap[sheetName]
-        val lsgDataMatrix = lsgMap[sheetName]
-
-        val lambda_1_list = ArrayList<Double>()
-        val lambda_2_list = ArrayList<Double>()
-
-        val det_1_list = ArrayList<Double>()
-        val det_2_list = ArrayList<Double>()
-
-        val trace_list = ArrayList<Double>()
-
-        for (index in mavDataMatrix!!.indices) {
-
-            val mavRow = mavDataMatrix[index]
-            val ccRow = ccDataMatrix!![index]
-
-            val bzcRow = bzcDataMatrix!![index]
-            val lsgRow = lsgDataMatrix!![index]
-
-            val (lambda_1, det_1) = findLambdaOf_Two_1D_Matrix(mavRow, ccRow)
-            val (lambda_2, det_2) = findLambdaOf_Two_1D_Matrix(bzcRow, lsgRow)
-
-
-            val original_4D_matrix = create(
-                arrayOf(
-                    mavRow.toDoubleArray(), ccRow.toDoubleArray()
-                    , bzcRow.toDoubleArray(), lsgRow.toDoubleArray()
-                )
-            )
-
-            val original_trace = original_4D_matrix.trace()
-
-            det_1_list.add(det_1)
-            det_2_list.add(det_2)
-            lambda_1_list.add(lambda_1)
-            lambda_2_list.add(lambda_2)
-            trace_list.add(original_trace)
+    val function_map =
+        HashMap<KFunction<EMGSignal>,
+                EMGSignal>().apply {
+            put(::MAV, MAV(map, chunkWidth))
+            put(::CC, CC(map, chunkWidth))
+            put(::BZC, BZC(map, chunkWidth))
+            put(::LSG, LSG(map, chunkWidth))
+            put(::WAMP, WAMP(map, chunkWidth))
+            put(::SSC, SSC(map, chunkWidth))
         }
 
-        //plot the graph and print out standard deviation
-        figure(count)
-        plot(x = null, y = lambda_1_list.toDoubleArray(), color = "g", lineLabel = "Lambda 1")
-        plot(x = null, y = lambda_2_list.toDoubleArray(), color = "b", lineLabel = "Lambda 2")
-        plot(x = null, y = det_1_list.toDoubleArray(), color = "orange", lineLabel = "Det 1")
-        plot(x = null, y = det_2_list.toDoubleArray(), color = "black", lineLabel = "Det 2")
-        plot(x = null, y = trace_list.toDoubleArray(), color = "p", lineLabel = "Trace")
+    for (sheetName in map.keys) {
 
-        xlabel("Data Set")
-        ylabel("Value")
-        title(sheetName)
+        val listOfEigenvaluesSD = ArrayList<EigenMethodPairSD>()
 
-        println(sheetName)
-        println(lambda_1_list.toDoubleArray().sd())
-        println(lambda_2_list.toDoubleArray().sd())
-        println(det_1_list.toDoubleArray().sd())
-        println(det_2_list.toDoubleArray().sd())
-        println(trace_list.toDoubleArray().sd())
-        println()
+        for (eigenMethodPair in function_combination_list) {
+            val (method_1, method_2) = eigenMethodPair
+            val dataMatrix_1 = function_map[method_1]!![sheetName]!!
+            val dataMatrix_2 = function_map[method_2]!![sheetName]!!
 
-        count++
+            val eigenvaluesSD = getEigenvaluesSDForTwoDataMatrices(dataMatrix_1, dataMatrix_2)
+            listOfEigenvaluesSD.add(EigenMethodPairSD(eigenMethodPair, eigenvaluesSD))
+        }
+
+        file_SD_ValueForEach[sheetName] = listOfEigenvaluesSD
+
     }
+
+    return file_SD_ValueForEach
 }
+
+fun getEigenvaluesSDForTwoDataMatrices(
+    dataMatrix_1: DataMatrix,
+    dataMatrix_2: DataMatrix
+): EigenvaluesSD {
+
+    val lambda_list = ArrayList<Double>()
+    val det_list = ArrayList<Double>()
+    val trace_list = ArrayList<Double>()
+
+    for (index in dataMatrix_1.indices) {
+
+        val dataMatrix_1_Row = dataMatrix_1[index]
+        val dataMatrix_2_Row = dataMatrix_2[index]
+
+        val (lambda, det) = findLambdaOf_Two_1D_Matrix(dataMatrix_1_Row, dataMatrix_2_Row)
+
+        val original_4D_matrix = create(
+            arrayOf(
+                dataMatrix_1_Row.toDoubleArray(), dataMatrix_2_Row.toDoubleArray()
+
+            )
+        )
+
+        val original_trace = original_4D_matrix.trace()
+
+        lambda_list.add(lambda)
+        det_list.add(det)
+        trace_list.add(original_trace)
+    }
+
+    return EigenvaluesSD(
+        lambda_list.toDoubleArray().sd(),
+        det_list.toDoubleArray().sd(),
+        trace_list.toDoubleArray().sd()
+    )
+}
+
 
 //return lambda of two matrix and C's det
 fun findLambdaOf_Two_1D_Matrix(m1: List<Double>, m2: List<Double>): Pair<Double, Double> {
@@ -149,9 +192,9 @@ fun findLambdaOf_Two_1D_Matrix(m1: List<Double>, m2: List<Double>): Pair<Double,
 }
 
 fun CC(
-    map: Map<String, List<List<Double>>>,
+    map: EMGSignal,
     w: Int
-): Map<String, List<List<Double>>> {
+): EMGSignal {
 
     val function: (chuckedList: List<Double>) -> Double = { chunk ->
 
@@ -169,9 +212,9 @@ fun CC(
 }
 
 fun BZC(
-    map: Map<String, List<List<Double>>>,
+    map: EMGSignal,
     w: Int
-): Map<String, List<List<Double>>> {
+): EMGSignal {
 
     val function: (chuckedList: List<Double>) -> Double = { chunk ->
 
@@ -196,9 +239,9 @@ fun BZC(
 }
 
 fun SSC(
-    map: Map<String, List<List<Double>>>,
+    map: EMGSignal,
     w: Int
-): Map<String, List<List<Double>>> {
+): EMGSignal {
 
     val function: (chuckedList: List<Double>) -> Double = { chunk ->
 
@@ -227,9 +270,9 @@ fun SSC(
 }
 
 fun LSG(
-    map: Map<String, List<List<Double>>>,
+    map: EMGSignal,
     w: Int
-): Map<String, List<List<Double>>> {
+): EMGSignal {
 
     val mavMap = MAV(map, w)
 
@@ -248,9 +291,9 @@ fun LSG(
 }
 
 fun WAMP(
-    map: Map<String, List<List<Double>>>,
+    map: EMGSignal,
     w: Int
-): Map<String, List<List<Double>>> {
+): EMGSignal {
 
     val function: (chuckedList: List<Double>) -> Double = { chunk ->
 
@@ -274,7 +317,7 @@ fun WAMP(
 
 }
 
-fun WL(map: Map<String, List<List<Double>>>, w: Int): Map<String, List<List<Double>>> {
+fun WL(map: EMGSignal, w: Int): EMGSignal {
 
     val function: (chuckedList: List<Double>) -> Double = { chunk ->
 
@@ -290,7 +333,7 @@ fun WL(map: Map<String, List<List<Double>>>, w: Int): Map<String, List<List<Doub
     return getRetMap(map, w, function)
 }
 
-fun MAV(map: Map<String, List<List<Double>>>, w: Int): Map<String, List<List<Double>>> {
+fun MAV(map: EMGSignal, w: Int): EMGSignal {
 
     val function: (chuckedList: List<Double>) -> Double = { chunk ->
         chunk.sumByDouble { it.absoluteValue } / chunk.size
@@ -300,13 +343,13 @@ fun MAV(map: Map<String, List<List<Double>>>, w: Int): Map<String, List<List<Dou
 }
 
 fun getRetMap(
-    map: Map<String, List<List<Double>>>,
+    map: EMGSignal,
     w: Int,
     function: (chuckedList: List<Double>) -> Double
-): Map<String, List<List<Double>>> {
+): EMGSignal {
 
     //returned Map for result of the same type but applied logic function to chunked List
-    val retMap = HashMap<String, List<List<Double>>>()
+    val retMap = HashMap<String, DataMatrix>()
 
     //sheet to value matrix
     for ((sheet, value) in map) {
@@ -336,9 +379,9 @@ fun getRetMap(
 }
 
 
-fun generateMapWithFile(filePath: String): Map<String, List<List<Double>>> {
+fun generateMapWithFile(filePath: String): EMGSignal {
 
-    val map = HashMap<String, List<List<Double>>>()
+    val map = HashMap<String, DataMatrix>()
 
     val inputStream = FileInputStream(filePath)
     //Instantiate Excel workbook using existing file:
@@ -349,11 +392,11 @@ fun generateMapWithFile(filePath: String): Map<String, List<List<Double>>> {
         val sheet = workBook.getSheetAt(i)
         val rowList = ArrayList<List<Double>>()
 
-        for (row in 0 until sheet.physicalNumberOfRows) {
+        for (row in 0 until if (filePath == mine_EMG) sheet.physicalNumberOfRows else 30) {
 
             val columnList = ArrayList<Double>()
 
-            for (column in 0 until sheet.getRow(row).physicalNumberOfCells) {
+            for (column in 0 until 3000) {
                 columnList.add(sheet.getRow(row).getCell(column).numericCellValue)
             }
 
