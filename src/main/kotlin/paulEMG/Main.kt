@@ -62,48 +62,104 @@ fun main() {
 
     //get mine first
     val excel_mine_EMG = exportStandardDeviationFile(mine_EMG)
-    exportExcel("./sd_mine_EMG.xlsx", excel_mine_EMG)
+    //exportExcel("./sd_mine_EMG.xlsx", excel_mine_EMG)
 
     val excel_male_1 = exportStandardDeviationFile(male_1)
-    exportExcel("./sd_male_1.xlsx", excel_male_1)
+    //exportExcel("./sd_male_1.xlsx", excel_male_1)
 
     val excel_female_1 = exportStandardDeviationFile(female_1)
-    exportExcel("./sd_female_1.xlsx", excel_female_1)
+    //exportExcel("./sd_female_1.xlsx", excel_female_1)
 
     val excel_female_2 = exportStandardDeviationFile(female_2)
-    exportExcel("./sd_female_2.xlsx", excel_female_2)
+    //exportExcel("./sd_female_2.xlsx", excel_female_2)
 
     val excel_female_3 = exportStandardDeviationFile(female_3)
-    exportExcel("./sd_female_3.xlsx", excel_female_3)
+    //exportExcel("./sd_female_3.xlsx", excel_female_3)
+
+    println("Mine : Male 1 \n")
+    findMatchingGesture(excel_mine_EMG, excel_male_1)
+
+    println("\nMine : Female 1 ")
+    findMatchingGesture(excel_mine_EMG, excel_female_1)
+
+    println("\nMine : Female 2 ")
+    findMatchingGesture(excel_mine_EMG, excel_female_2)
+
+    println("\nMine : Female 3 ")
+    findMatchingGesture(excel_mine_EMG, excel_female_3)
 
     println()
 
 }
 
-fun coefficientFunction(SD_1: EigenvaluesSD, SD_2: EigenvaluesSD): Int {
-    val SD_1_result = SD_1.lambdaSD <= 2.0 && SD_1.detSD <= 0.5 && SD_1.traceSD <= 3
-    val SD_2_result = SD_2.lambdaSD <= 2.0 && SD_2.detSD <= 0.5 && SD_2.traceSD <= 3
+val lambdaThreshold = 2.0
+val detThreshold = 0.5
+val traceThreshold = 3.0
 
-    return if (SD_1_result && SD_2_result) 1 else 0
+fun coefficientFunction(SD_1: EigenvaluesSD, SD_2: EigenvaluesSD): Double {
+
+    val SD_1_result = SD_1.lambdaSD <= lambdaThreshold && SD_1.detSD <= detThreshold && SD_1.traceSD <= traceThreshold
+    val SD_2_result = SD_2.lambdaSD <= lambdaThreshold && SD_2.detSD <= detThreshold && SD_2.traceSD <= traceThreshold
+
+    return if (SD_1_result && SD_2_result) 1.0 else 0.0
 }
 
-fun findMatchingPairSD(mine_pairSD: EigenvaluesSD, dataSet_map: Map<String, List<EigenMethodPairSD>>) {
+fun gestureMatchingValue(mine_gesture: List<EigenMethodPairSD>, compareGesture: List<EigenMethodPairSD>): Double {
+
+    var lambdaTotal = 0.0
+    var detTotal = 0.0
+    var traceTotal = 0.0
+
+    var cofTotal = 0.0
+
+    for (index in mine_gesture.indices) {
+        val mine_SD = mine_gesture[index].second
+        val compare_SD = compareGesture[index].second
+        val coeff = coefficientFunction(mine_SD, compare_SD)
+
+        lambdaTotal += (mine_SD.lambdaSD - compare_SD.lambdaSD).absoluteValue * coeff
+        detTotal += (mine_SD.detSD - compare_SD.detSD).absoluteValue * coeff
+        traceTotal += (mine_SD.traceSD - compare_SD.traceSD).absoluteValue * coeff
+        cofTotal += coeff
+    }
+
+    return (lambdaTotal + detTotal + traceTotal) / cofTotal
+}
+
+fun findMatchingGesture(
+    mine_map: Map<String, List<EigenMethodPairSD>>,
+    dataSet_map: Map<String, List<EigenMethodPairSD>>
+) {
 
     val dataSet_map_ch1 = dataSet_map.filter {
         it.key.contains("ch1")
     }
 
-    val matching_gesture = Pair("", 0.0)
+    val mine_map_ch1 = mine_map.filter {
+        it.key.contains("ch1")
+    }
 
-    for((gesture, eigenValue) in dataSet_map_ch1){
+    //val matching_gesture = Pair("", 0.0)
 
+    for ((mine_gesture, mine_eigenValue) in mine_map_ch1) {
+
+        var matchingValue = Double.MAX_VALUE
+        var matchingGesture = ""
+
+        for ((data_gesture, data_eigenValue) in dataSet_map_ch1) {
+
+            val result = gestureMatchingValue(mine_eigenValue, data_eigenValue)
+
+            if (matchingValue > result) {
+                matchingValue = result
+                matchingGesture = data_gesture
+            }
+        }
+
+        println("$mine_gesture $matchingGesture ${(if (mine_gesture == matchingGesture) "-------MATCH--------" else "")}")
     }
 
 }
-
-//fun gestureMatchingValue(mine_gesture : EigenvaluesSD, comparingGesture : EigenvaluesSD) : Double{
-//
-//}
 
 fun exportExcel(filePath: String, map: Map<String, List<EigenMethodPairSD>>) {
 
