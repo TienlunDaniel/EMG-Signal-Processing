@@ -60,6 +60,10 @@ val male_1 = "./male_1.xlsx"
 
 fun main() {
 
+    //get mine first
+    val excel_mine_EMG = exportStandardDeviationFile(mine_EMG)
+    exportExcel("./sd_mine_EMG.xlsx", excel_mine_EMG)
+
     val excel_male_1 = exportStandardDeviationFile(male_1)
     exportExcel("./sd_male_1.xlsx", excel_male_1)
 
@@ -72,15 +76,37 @@ fun main() {
     val excel_female_3 = exportStandardDeviationFile(female_3)
     exportExcel("./sd_female_3.xlsx", excel_female_3)
 
-    val excel_mine_EMG = exportStandardDeviationFile(mine_EMG)
-    exportExcel("./sd_mine_EMG.xlsx", excel_mine_EMG)
-
     println()
 
 }
 
+fun coefficientFunction(SD_1: EigenvaluesSD, SD_2: EigenvaluesSD): Int {
+    val SD_1_result = SD_1.lambdaSD <= 2.0 && SD_1.detSD <= 0.5 && SD_1.traceSD <= 3
+    val SD_2_result = SD_2.lambdaSD <= 2.0 && SD_2.detSD <= 0.5 && SD_2.traceSD <= 3
+
+    return if (SD_1_result && SD_2_result) 1 else 0
+}
+
+fun findMatchingPairSD(mine_pairSD: EigenvaluesSD, dataSet_map: Map<String, List<EigenMethodPairSD>>) {
+
+    val dataSet_map_ch1 = dataSet_map.filter {
+        it.key.contains("ch1")
+    }
+
+    val matching_gesture = Pair("", 0.0)
+
+    for((gesture, eigenValue) in dataSet_map_ch1){
+
+    }
+
+}
+
+//fun gestureMatchingValue(mine_gesture : EigenvaluesSD, comparingGesture : EigenvaluesSD) : Double{
+//
+//}
+
 fun exportExcel(filePath: String, map: Map<String, List<EigenMethodPairSD>>) {
-    // Create a Workbook
+
     // Create a Workbook
     val workbook: Workbook = XSSFWorkbook() // new HSSFWorkbook() for generating `.xls` file
 
@@ -97,7 +123,7 @@ fun exportExcel(filePath: String, map: Map<String, List<EigenMethodPairSD>>) {
         // Create cells
         for (i in listOfPairSD.indices) {
 
-            val function_name = listOfPairSD[i].first.first.name +" , " +  listOfPairSD[i].first.second.name
+            val function_name = listOfPairSD[i].first.first.name + " , " + listOfPairSD[i].first.second.name
             headerRow.createCell(i * 3 + 1).setCellValue(function_name)
 
             lambdaRow.createCell(i * 3 + 1).setCellValue(listOfPairSD[i].second.lambdaSD)
